@@ -1,0 +1,81 @@
+name: tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tap-syntax:
+    name: tap syntax
+    runs-on: macos-latest
+    steps:
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@18fcb8e3e06b4247c676c506750dc95ea7226479 # 2026.07.13.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache Homebrew Bundler RubyGems
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.set-up-homebrew.outputs.gems-path }}
+          key: ${{ runner.os }}-rubygems-${{ steps.set-up-homebrew.outputs.gems-hash }}
+          restore-keys: ${{ runner.os }}-rubygems-
+
+      - name: Read all casks and formulae
+        env:
+          TAP: ${{ steps.set-up-homebrew.outputs.tap-name }}
+        run: brew readall --os=all --arch=all --aliases "$TAP"
+
+      - name: Check style
+        env:
+          TAP: ${{ steps.set-up-homebrew.outputs.tap-name }}
+        # The excluded cops are formatting choices baked into GoReleaser's
+        # generated casks, which are overwritten on every release.
+        run: |
+          brew style \
+            --except-cops=Cask/StanzaGrouping,Layout/FirstArrayElementIndentation,Layout/EmptyLinesAroundBlockBody,Style/NumericPredicate \
+            "$TAP"
+
+      - name: Audit
+        env:
+          TAP: ${{ steps.set-up-homebrew.outputs.tap-name }}
+          HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: brew audit --online --except=installed --tap="$TAP"
+
+  install:
+    name: install (${{ matrix.os }})
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    needs: tap-syntax
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@18fcb8e3e06b4247c676c506750dc95ea7226479 # 2026.07.13.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install and uninstall every cask in the tap
+        env:
+          TAP: ${{ steps.set-up-homebrew.outputs.tap-name }}
+          HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for cask in "$(brew --repository "$TAP")"/Casks/*.rb; do
+            token="$(basename "$cask" .rb)"
+            brew install --cask "$TAP/$token"
+            brew uninstall --cask "$TAP/$token"
+          done
