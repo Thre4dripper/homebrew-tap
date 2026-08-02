@@ -34,7 +34,7 @@ cd "$(brew --repository Thre4dripper/tap)"
 
 # Syntax, style and audit — the same checks CI runs
 brew readall --os=all --arch=all --aliases Thre4dripper/tap
-brew style Thre4dripper/tap
+brew style Casks/<token>.rb
 brew audit --online --except=installed --tap=Thre4dripper/tap
 
 # Real install smoke test
@@ -42,7 +42,9 @@ brew install --cask --verbose --debug Thre4dripper/tap/<token>
 brew uninstall --cask Thre4dripper/tap/<token>
 ```
 
-`brew style --fix` autocorrects most formatting complaints.
+`brew style --fix` autocorrects most formatting complaints. CI only styles
+hand-written files: GoReleaser-generated casks are skipped because the next
+release would undo any fix.
 
 ## Pull request checklist
 

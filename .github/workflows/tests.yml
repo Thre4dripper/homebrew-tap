@@ -40,12 +40,27 @@ jobs:
         run: brew readall --os=all --arch=all --aliases "$TAP"
 
       - name: Check style
-        # The excluded cops are formatting choices baked into GoReleaser's
-        # generated casks, which are overwritten on every release.
+        # GoReleaser-generated files are skipped: every release overwrites them,
+        # so style fixes there cannot survive.
         run: |
-          brew style \
-            --except-cops=Cask/StanzaGrouping,Layout/FirstArrayElementIndentation,Layout/EmptyLinesAroundBlockBody,Style/NumericPredicate \
-            "$TAP"
+          cd "$(brew --repository "$TAP")"
+          files=()
+          for file in Casks/*.rb Formula/*.rb; do
+            if [[ -f "$file" ]] && ! grep -qF "DO NOT EDIT" "$file"; then
+              files+=("$file")
+            fi
+          done
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No hand-written casks or formulae to check."
+            exit 0
+          fi
+          brew style "${files[@]}"
+
+      - name: Lint workflows
+        run: |
+          brew install actionlint
+          cd "$(brew --repository "$TAP")"
+          actionlint
 
       - name: Audit
         env:
