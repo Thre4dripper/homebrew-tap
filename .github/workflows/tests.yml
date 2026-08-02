@@ -32,14 +32,14 @@ jobs:
           key: ${{ runner.os }}-rubygems-${{ steps.set-up-homebrew.outputs.gems-hash }}
           restore-keys: ${{ runner.os }}-rubygems-
 
+      - name: Resolve tap name
+        run: |
+          echo "TAP=$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]' | sed 's|/homebrew-|/|')" >>"$GITHUB_ENV"
+
       - name: Read all casks and formulae
-        env:
-          TAP: ${{ steps.set-up-homebrew.outputs.tap-name }}
         run: brew readall --os=all --arch=all --aliases "$TAP"
 
       - name: Check style
-        env:
-          TAP: ${{ steps.set-up-homebrew.outputs.tap-name }}
         # The excluded cops are formatting choices baked into GoReleaser's
         # generated casks, which are overwritten on every release.
         run: |
@@ -49,7 +49,6 @@ jobs:
 
       - name: Audit
         env:
-          TAP: ${{ steps.set-up-homebrew.outputs.tap-name }}
           HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: brew audit --online --except=installed --tap="$TAP"
 
@@ -64,14 +63,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Set up Homebrew
-        id: set-up-homebrew
         uses: Homebrew/actions/setup-homebrew@18fcb8e3e06b4247c676c506750dc95ea7226479 # 2026.07.13.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve tap name
+        run: |
+          echo "TAP=$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]' | sed 's|/homebrew-|/|')" >>"$GITHUB_ENV"
+
       - name: Install and uninstall every cask in the tap
         env:
-          TAP: ${{ steps.set-up-homebrew.outputs.tap-name }}
           HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           for cask in "$(brew --repository "$TAP")"/Casks/*.rb; do
